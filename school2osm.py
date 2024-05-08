@@ -9,7 +9,6 @@
 
 import errno
 import html
-import json
 import sys
 import time
 import urllib.error
@@ -287,11 +286,8 @@ def main(filename: str = 'skoler.osm'):
 
     school_data = get_all_schools()
 
-    # TODO: use reduce or filter here
-    first_count = 0
-    for school_entry in school_data.units:
-        if school_entry.is_relevant:
-            first_count += 1
+    schools = [school for school in school_data.units if school.is_relevant]
+    first_count = len(schools)
 
     message(" %s schools\n" % first_count)
 
@@ -310,10 +306,7 @@ def main(filename: str = 'skoler.osm'):
 
     # Iterate all schools and produce OSM file
 
-    for school_entry in tqdm(school_data.units):
-
-        if not school_entry.is_relevant:
-            continue
+    for school_entry in tqdm(schools):
 
         node_id -= 1
         count += 1
@@ -435,7 +428,6 @@ def main(filename: str = 'skoler.osm'):
 #                make_osm_line(file, "GSIID", school['GsiId'])
 
         if school.date_created:
-            # TODO: Don't slice datetime objects
             make_osm_line(file, "DATE_CREATED", school.date_created.strftime("%Y-%m-%d"))
 
         make_osm_line(file, "DATE_UPDATED", school.date_changed.strftime("%Y-%m-%d"))
