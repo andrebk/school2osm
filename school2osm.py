@@ -15,8 +15,10 @@ import urllib.error
 import urllib.request
 import requests
 import argparse
+import logging
 from model import NsrEnhetTinyApiModel, NsrEnhetTinyApiModelApiPageResult, NsrEnhetApiModel
 from tqdm import tqdm
+from pathlib import Path
 
 version = "1.1.0"
 
@@ -157,6 +159,8 @@ transform_operator = {
     'Oks': 'OKS'
 }
 
+logger = logging.getLogger(__name__)
+
 
 def make_osm_line(file, key, value):
     """Produce a tag for OSM file"""
@@ -190,13 +194,43 @@ def try_urlopen(url):
     sys.exit()
 
 
+def get_data(api_path: str, use_cache: bool = True):
+    """
+    Get data from an API endpoint.
+    Optionally write it to cache and use that cached file instead.
+    """
+
+    api_base = "https://data-nsr.udir.no/v3/"
+    cache_dir = "cache/"
+
+    cache_file = Path(cache_dir + api_path + ".json")
+    data = None
+    if use_cache and cache_file.exists():
+        with cache_file.open("r") as file:
+            data = file.read()
+            logger.debug(f"Loaded data from cache for {api_path}")
+    else:
+        response = requests.get(api_base + api_path)
+        response.raise_for_status()  # TODO: Retry on failure
+        data = response.text
+        logger.debug(f"Downloaded data from API for {api_path}")
+        if use_cache:
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            with cache_file.open("w") as file:
+                file.write(response.text)
+                logger.debug(f"Saved data to cache for {api_path}")
+
+    if not data:
+        raise IOError(f"No data found for {api_path}")
+
+    return data
+
+
 def get_all_schools() -> NsrEnhetTinyApiModelApiPageResult:
     """Load basic information of all schools"""
 
-    url = "https://data-nsr.udir.no/v3/enheter?sidenummer=1&antallPerSide=100"
-    response = requests.get(url)
-    response.raise_for_status()  # TODO: Retry on failure
-    school_data = NsrEnhetTinyApiModelApiPageResult.model_validate_json(response.text)
+    data = get_data("enheter?sidenummer=1&antallPerSide=30000")
+    school_data = NsrEnhetTinyApiModelApiPageResult.model_validate_json(data)
 
     # TODO: Handle pagination
     if school_data.num_pages > 1:
@@ -208,11 +242,8 @@ def get_all_schools() -> NsrEnhetTinyApiModelApiPageResult:
 def get_school_details(school: NsrEnhetTinyApiModel) -> NsrEnhetApiModel:
     """Load school details"""
 
-    url = f"https://data-nsr.udir.no/v3/enhet/{school.org_num}"
-    response = requests.get(url)
-    response.raise_for_status()  # TODO: Retry on failure
-    school = NsrEnhetApiModel.model_validate_json(response.text)
-    return school
+    data = get_data(f"enhet/{school.org_num}")
+    return NsrEnhetApiModel.model_validate_json(data)
 
 
 def fix_school_name(school: NsrEnhetApiModel) -> tuple[str, str]:
@@ -484,4 +515,8 @@ if __name__ == '__main__':
                                      description="Extracts schools from the Norwegian National School Register (NSR)")
     parser.add_argument("filename", nargs="?", default="skoler.osm", help="Name of output file (default: skoler.osm)")
     args = parser.parse_args()
+
+    start = time.perf_counter()
     main(args.filename)
+    stop = time.perf_counter()
+    print(f"Elapsed time: {stop - start:.4f}")
