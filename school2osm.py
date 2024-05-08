@@ -17,6 +17,7 @@ import urllib.request
 import requests
 import argparse
 from model import NsrEnhetTinyApiModel, NsrEnhetTinyApiModelApiPageResult, NsrEnhetApiModel
+from tqdm import tqdm
 
 version = "1.1.0"
 
@@ -308,15 +309,14 @@ def main(filename: str = 'skoler.osm'):
     geocode = 0
 
     # Iterate all schools and produce OSM file
-    for school_entry in school_data.units:
+
+    for school_entry in tqdm(school_data.units):
 
         if not school_entry.is_relevant:
             continue
 
         node_id -= 1
         count += 1
-
-        message("\r%i " % (first_count - count))
 
         # Load school details
         school = get_school_details(school_entry)
