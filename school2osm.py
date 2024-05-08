@@ -14,6 +14,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import argparse
 
 version = "1.1.0"
 
@@ -155,7 +156,7 @@ transform_operator = {
 }
 
 
-def make_osm_line(key, value):
+def make_osm_line(file, key, value):
     """Produce a tag for OSM file"""
     if value:
         encoded_key = html.escape(key)
@@ -187,7 +188,72 @@ def try_urlopen(url):
     sys.exit()
 
 
-if __name__ == '__main__':
+def get_all_schools() -> dict:
+    """Load basic information of all schools"""
+
+    url = "https://data-nsr.udir.no/v3/enheter?sidenummer=1&antallPerSide=30000"
+    file = urllib.request.urlopen(url)
+    school_data = json.load(file)
+    file.close()
+    return school_data
+
+
+def get_school(org_num: str) -> dict:
+    """Load school details"""
+
+    url = f"https://data-nsr.udir.no/v3/enhet/{org_num}"
+    school_file = try_urlopen(url)
+    school = json.load(school_file)
+    school_file.close()
+    return school
+
+
+def fix_school_name(school: dict) -> tuple[str, str]:
+    name = school['Navn']
+    original_name = name
+
+    name = name.replace("/", " / ")
+
+    if school['Karakteristikk']:
+        original_name += ", " + school['Karakteristikk']
+        if (school['Karakteristikk'].lower() not in
+                ["skole", "skule", "skolen", "skulen", "avd skule", "avd skole", "avd undervisning", "avdeling skole", "avdeling skule"]):
+            name += ", " + school['Karakteristikk']
+
+    if name == name.upper():
+        name = name.title()
+
+    name_split = name.split()
+    name = ""
+    for word in name_split:
+        if word[-1] == ",":
+            word_without_comma = word[:-1]
+        else:
+            word_without_comma = word
+
+        if word_without_comma in transform_name:
+            if transform_name[word_without_comma]:
+                name += transform_name[word_without_comma]
+        else:
+            name += word
+
+        if word[-1] == ",":
+            name += ", "
+        else:
+            name += " "
+
+    for words in transform_names:
+        name = name.replace(words, transform_names[words])
+
+    name = name[0].upper() + name[1:].replace(" ,", ",").replace(",,", ",").replace("  ", " ").strip("- ")
+
+#            if school['Maalform'] == "Nynorsk":
+#                name = name.replace("skole", "skule").replace("videregående", "vidaregåande")
+
+    return name, original_name
+
+
+def main(filename: str = 'skoler.osm'):
     """Main program"""
 
     message("Loading data ...")
@@ -209,12 +275,7 @@ if __name__ == '__main__':
                 old_refs[ school['OrgNr'] ] = school['NSRId']
     '''
 
-    # Load basic information of all schools
-
-    url = "https://data-nsr.udir.no/v3/enheter?sidenummer=1&antallPerSide=30000"
-    file = urllib.request.urlopen(url)
-    school_data = json.load(file)
-    file.close()
+    school_data = get_all_schools()
 
     first_count = 0
     for school_entry in school_data['Enheter']:
@@ -227,13 +288,6 @@ if __name__ == '__main__':
 
     if school_data['AntallSider'] > 1:
         message("*** Note: There are more data from API than loaded\n")
-
-    # Get output filename
-
-    filename = 'skoler.osm'
-    
-    if len(sys.argv) > 1:
-        filename = sys.argv[1]
 
     file = open(filename, "w")
 
@@ -249,7 +303,6 @@ if __name__ == '__main__':
     geocode = 0
 
     # Iterate all schools and produce OSM file
-
     for school_entry in school_data['Enheter']:
 
         if (school_entry['ErAktiv'] == True
@@ -262,60 +315,16 @@ if __name__ == '__main__':
             message("\r%i " % (first_count - count))
 
             # Load school details
-
-            url = "https://data-nsr.udir.no/v3/enhet/" + str(school_entry['Orgnr'])
-            school_file = try_urlopen(url)
-            school = json.load(school_file)
-            school_file.close()
-#            time.sleep(1)
+            school = get_school(school_entry["Orgnr"])
 
             # Fix school name
-
-            name = school['Navn']
-            original_name = name
-
-            name = name.replace("/", " / ")
-
-            if school['Karakteristikk']:
-                original_name += ", " + school['Karakteristikk']
-                if (school['Karakteristikk'].lower() not in
-                        ["skole", "skule", "skolen", "skulen", "avd skule", "avd skole", "avd undervisning", "avdeling skole", "avdeling skule"]):
-                    name += ", " + school['Karakteristikk']
-
-            if name == name.upper():
-                name = name.title()
-
-            name_split = name.split()
-            name = ""
-            for word in name_split:
-                if word[-1] == ",":
-                    word_without_comma = word[:-1]
-                else:
-                    word_without_comma = word
-                if word_without_comma in transform_name:
-                    if transform_name[word_without_comma]:
-                        name += transform_name[word_without_comma]
-                else:
-                    name += word
-                if word[-1] == ",":
-                    name += ", "
-                else:
-                    name += " "
-
-            for words in transform_names:
-                name = name.replace(words, transform_names[words])
-
-            name = name[0].upper() + name[1:].replace(" ,", ",").replace(",,", ",").replace("  ", " ").strip("- ")
-
-#            if school['Maalform'] == "Nynorsk":
-#                name = name.replace("skole", "skule").replace("videregående", "vidaregåande")
+            name, original_name = fix_school_name(school)
 
             # Generate tags
-
             if school['Koordinat']:
                 latitude = school['Koordinat']['Breddegrad']
                 longitude = school['Koordinat']['Lengdegrad']
-                if not(latitude or longitude):
+                if not (latitude or longitude):
                     latitude = 0
                     longitude = 0
             else:
@@ -324,18 +333,18 @@ if __name__ == '__main__':
 
             file.write('  <node id="%i" lat="%s" lon="%s">\n' % (node_id, latitude, longitude))
 
-            make_osm_line("amenity", "school")
-            make_osm_line("ref:udir_nsr", str(school['Orgnr']))
-            make_osm_line("name", name)
+            make_osm_line(file, "amenity", "school")
+            make_osm_line(file, "ref:udir_nsr", str(school['Orgnr']))
+            make_osm_line(file, "name", name)
 
 #            if school['Orgnr'] in old_refs:
-#                make_osm_line("OLD_REF", str(old_refs[ school['Orgnr'] ]))
+#                make_osm_line(file, "OLD_REF", str(old_refs[ school['Orgnr'] ]))
 
             if school['Epost']:
-                make_osm_line("email", school['Epost'].lower())
+                make_osm_line(file, "email", school['Epost'].lower())
 
             if school['Url'] and not("@" in school['Url']):
-                make_osm_line("website", "https://" + school['Url'].lstrip("/").replace("www2.", "").replace("www.", "").replace(" ",""))
+                make_osm_line(file, "website", "https://" + school['Url'].lstrip("/").replace("www2.", "").replace("www.", "").replace(" ",""))
 
             if school['Telefon']:
                 phone = school['Telefon'].replace("  ", " ")
@@ -345,10 +354,10 @@ if __name__ == '__main__':
                             phone = "+" + phone[2:].lstrip()
                         else:
                             phone = "+47 " + phone
-                    make_osm_line("phone", phone)
+                    make_osm_line(file, "phone", phone)
 
             if school['Elevtall']:
-                make_osm_line("capacity", str(school['Elevtall']))
+                make_osm_line(file, "capacity", str(school['Elevtall']))
 
             # Get school type
 
@@ -367,9 +376,9 @@ if __name__ == '__main__':
 
             if grade1 and grade2:
                 if grade1 == grade2:
-                    make_osm_line("grades", str(grade1))
+                    make_osm_line(file, "grades", str(grade1))
                 else:
-                    make_osm_line("grades", str(grade1) + "-" + str(grade2))
+                    make_osm_line(file, "grades", str(grade1) + "-" + str(grade2))
 
                 if grade1 <= 7:
                     isced = "1"
@@ -384,20 +393,20 @@ if __name__ == '__main__':
                 if school['ErVideregaaendeSkole']:
                     isced += ";3"
 
-            make_osm_line("isced:level", isced.strip(";"))
+            make_osm_line(file, "isced:level", isced.strip(";"))
 
             # Check for "Andre tjenester tilknyttet undervisning" code
             if any([code['Kode'] == "85.609" for code in school["Naeringskoder"]]):
-                make_osm_line("OTHER_SERVICES", "yes")
+                make_osm_line(file, "OTHER_SERVICES", "yes")
 
             # Get operator
 
             if school['ErOffentligSkole'] == True:
-                make_osm_line("operator:type", "public")
-                make_osm_line("fee", "no")
+                make_osm_line(file, "operator:type", "public")
+                make_osm_line(file, "fee", "no")
             elif school['ErPrivatskole'] == True:
-                make_osm_line("operator:type", "private")
-                make_osm_line("fee", "yes")
+                make_osm_line(file, "operator:type", "private")
+                make_osm_line(file, "fee", "yes")
 
             for parent in school['ForeldreRelasjoner']:
                 if parent['Relasjonstype']['Id'] == "1" and parent['Enhet']['Navn']:  # Owner
@@ -412,33 +421,33 @@ if __name__ == '__main__':
                             operator += word + " "
 
                     operator = operator[0].upper() + operator[1:].replace("  ", " ").strip()
-                    make_osm_line("operator", operator)
+                    make_osm_line(file, "operator", operator)
 
             # Generate extra tags for help during import
 
 #            if school['GsiId'] != "0":
-#                make_osm_line("GSIID", school['GsiId'])
+#                make_osm_line(file, "GSIID", school['GsiId'])
 
             if school['DatoFoedt']:
-                make_osm_line("DATE_CREATED", school['DatoFoedt'][0:10])
+                make_osm_line(file, "DATE_CREATED", school['DatoFoedt'][0:10])
 
-            make_osm_line("DATE_UPDATED", school['DatoEndret'][0:10])
-            make_osm_line("MUNICIPALITY", school['Kommune']['Navn'])
-            make_osm_line("COUNTY", school['Fylke']['Navn'])
-            make_osm_line("DEPARTMENT", school['Karakteristikk'])
-            make_osm_line("LANGUAGE", school['Maalform']['Navn'])
+            make_osm_line(file, "DATE_UPDATED", school['DatoEndret'][0:10])
+            make_osm_line(file, "MUNICIPALITY", school['Kommune']['Navn'])
+            make_osm_line(file, "COUNTY", school['Fylke']['Navn'])
+            make_osm_line(file, "DEPARTMENT", school['Karakteristikk'])
+            make_osm_line(file, "LANGUAGE", school['Maalform']['Navn'])
 
-            make_osm_line("ENTITY_CODES", "; ".join(["%i.%s" % (code['Prioritet'], code['Navn']) for code in school['Naeringskoder']]))
-            make_osm_line("SCHOOL_CODES", str("; ".join([code['Navn'] for code in school['Skolekategorier']])))
+            make_osm_line(file, "ENTITY_CODES", "; ".join(["%i.%s" % (code['Prioritet'], code['Navn']) for code in school['Naeringskoder']]))
+            make_osm_line(file, "SCHOOL_CODES", str("; ".join([code['Navn'] for code in school['Skolekategorier']])))
 
             if school['ErSpesialskole'] == True:
-                make_osm_line("SPECIAL_NEEDS", "Spesialskole")
+                make_osm_line(file, "SPECIAL_NEEDS", "Spesialskole")
 
             if name != original_name:
-                make_osm_line("ORIGINAL_NAME", original_name)
+                make_osm_line(file, "ORIGINAL_NAME", original_name)
 
             if school['Koordinat']:
-                make_osm_line("LOCATION_SOURCE", school['Koordinat']['GeoKilde'])
+                make_osm_line(file, "LOCATION_SOURCE", school['Koordinat']['GeoKilde'])
 
             address = school['Beliggenhetsadresse']
             if address:
@@ -452,10 +461,10 @@ if __name__ == '__main__':
                 if address['Land'] and address['Land'] != "Norge":
                     address_line += ", " + address['Land']
                 if address_line:
-                    make_osm_line("ADDRESS", address_line)
+                    make_osm_line(file, "ADDRESS", address_line)
 
             if not (longitude or latitude):
-                make_osm_line("GEOCODE", "yes")
+                make_osm_line(file, "GEOCODE", "yes")
                 geocode += 1
 
             # Done with OSM node
@@ -469,3 +478,11 @@ if __name__ == '__main__':
 
     message("\r%i schools written to file\n" % count)
     message("%i schools need geocoding\n\n" % geocode)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(prog="school2osm",
+                                     description="Extracts schools from the Norwegian National School Register (NSR)")
+    parser.add_argument("filename", nargs="?", default="skoler.osm", help="Name of output file (default: skoler.osm)")
+    args = parser.parse_args()
+    main(args.filename)
