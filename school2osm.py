@@ -313,15 +313,11 @@ def main(filename: str = 'skoler.osm'):
 
     osm_data = Data(generator=f"school2osm v{version}")
 
-    count = 0
     geocode = 0
 
     # Iterate all schools and produce OSM file
 
     for school_entry in tqdm(schools):
-
-        count += 1
-
         # Load school details
         school = get_school_details(school_entry)
 
@@ -486,7 +482,7 @@ def main(filename: str = 'skoler.osm'):
     with open(filename, "w") as file:
         osm_data.xml(file)
 
-    print(f"{count} schools written to file")
+    print(f"{len(schools)} schools written to file")
     print(f"{geocode} schools need geocoding")
 
 
