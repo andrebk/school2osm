@@ -163,12 +163,6 @@ transform_operator = {
 logger = logging.getLogger(__name__)
 
 
-def message(line):
-    """Output message"""
-    sys.stdout.write(line)
-    sys.stdout.flush()
-
-
 def try_urlopen(url):
     """Open file/api, try up to 5 times, each time with double sleep time"""
     tries = 0
@@ -178,12 +172,13 @@ def try_urlopen(url):
 
         except OSError as e:  # Mostly "Connection reset by peer"
             if e.errno == errno.ECONNRESET:
-                message("\tRetry %i in %ss...\n" % (tries + 1, 5 * (2**tries)))
-                time.sleep(5 * (2**tries))
-                tries += 1            
-    
-    message("\n\nError: %s\n" % e.reason)
-    message("%s\n\n" % url.get_full_url())
+                tries += 1
+                sleep_time = 5 * (2**tries)
+                print(f"    Retry {tries} in {sleep_time} seconds...\n")
+                time.sleep(sleep_time)
+
+    print(f"Error: {e.reason}")
+    print(f"{url.get_full_url()}")
     sys.exit()
 
 
@@ -227,7 +222,7 @@ def get_all_schools() -> NsrEnhetTinyApiModelApiPageResult:
 
     # TODO: Handle pagination
     if school_data.num_pages > 1:
-        message("*** Note: There are more data from API than loaded\n")
+        print("*** Note: There are more data from API than loaded")
 
     return school_data
 
@@ -289,7 +284,7 @@ def fix_school_name(school: NsrEnhetApiModel) -> tuple[str, str]:
 def main(filename: str = 'skoler.osm'):
     """Main program"""
 
-    message("Loading data ...")
+    print("Loading data ...")
 
     # Load earlier ref from old API (legacy ref)
     '''
@@ -313,9 +308,8 @@ def main(filename: str = 'skoler.osm'):
     schools = [school for school in school_data.units if school.is_relevant]
     first_count = len(schools)
 
-    message(" %s schools\n" % first_count)
-
-    message("Converting to file '%s' ...\n" % filename)
+    print(f" {first_count} schools")
+    print(f"Converting to file '{filename}' ...")
 
     osm_data = Data(generator=f"school2osm v{version}")
 
@@ -454,7 +448,7 @@ def main(filename: str = 'skoler.osm'):
             node.tags["DEPARTMENT"] = school.characteristic
         node.tags["LANGUAGE"] = school.written_language.name
 
-        node.tags["ENTITY_CODES"] = "; ".join(["%i.%s" % (code.priority, code.name) for code in school.business_codes])
+        node.tags["ENTITY_CODES"] = "; ".join([f"{code.priority}.{code.name}" for code in school.business_codes])
         node.tags["SCHOOL_CODES"] = str("; ".join([code.name for code in school.school_categories]))
 
         if school.is_special_school:
@@ -492,8 +486,8 @@ def main(filename: str = 'skoler.osm'):
     with open(filename, "w") as file:
         osm_data.xml(file)
 
-    message("\r%i schools written to file\n" % count)
-    message("%i schools need geocoding\n\n" % geocode)
+    print(f"{count} schools written to file")
+    print(f"{geocode} schools need geocoding")
 
 
 if __name__ == '__main__':
