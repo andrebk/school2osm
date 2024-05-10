@@ -19,6 +19,7 @@ import logging
 from model import NsrEnhetTinyApiModel, NsrEnhetTinyApiModelApiPageResult, NsrEnhetApiModel
 from tqdm import tqdm
 from pathlib import Path
+from osm import Data, Node
 
 version = "1.1.0"
 
@@ -160,14 +161,6 @@ transform_operator = {
 }
 
 logger = logging.getLogger(__name__)
-
-
-def make_osm_line(file, key, value):
-    """Produce a tag for OSM file"""
-    if value:
-        encoded_key = html.escape(key)
-        encoded_value = html.escape(value).strip()
-        file.write('    <tag k="%s" v="%s" />\n' % (encoded_key, encoded_value))
 
 
 def message(line):
@@ -322,16 +315,10 @@ def main(filename: str = 'skoler.osm'):
 
     message(" %s schools\n" % first_count)
 
-    file = open(filename, "w")
-
-    # Produce OSM file header
-
     message("Converting to file '%s' ...\n" % filename)
 
-    file.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-    file.write('<osm version="0.6" generator="schools2osm v%s" upload="false">\n' % version)
+    osm_data = Data(generator=f"school2osm v{version}")
 
-    node_id = -1000
     count = 0
     geocode = 0
 
@@ -339,7 +326,6 @@ def main(filename: str = 'skoler.osm'):
 
     for school_entry in tqdm(schools):
 
-        node_id -= 1
         count += 1
 
         # Load school details
@@ -361,20 +347,20 @@ def main(filename: str = 'skoler.osm'):
             latitude = 0
             longitude = 0
 
-        file.write('  <node id="%i" lat="%s" lon="%s">\n' % (node_id, latitude, longitude))
+        node = Node(lat=latitude, lon=longitude)
 
-        make_osm_line(file, "amenity", "school")
-        make_osm_line(file, "ref:udir_nsr", str(school.org_num))
-        make_osm_line(file, "name", name)
+        node.tags["amenity"] = "school"
+        node.tags["ref:udir_nsr"] = school.org_num
+        node.tags["name"] = name
 
 #            if school['Orgnr'] in old_refs:
-#                make_osm_line(file, "OLD_REF", str(old_refs[ school['Orgnr'] ]))
+#                node.tags["OLD_REF"] = str(old_refs[ school['Orgnr'] ])
 
         if school.email:
-            make_osm_line(file, "email", school.email.lower())
+            node.tags["email"] = school.email.lower()
 
         if school.url and not("@" in school.url):
-            make_osm_line(file, "website", "https://" + school.url.lstrip("/").replace("www2.", "").replace("www.", "").replace(" ",""))
+            node.tags["website"] = "https://" + school.url.lstrip("/").replace("www2.", "").replace("www.", "").replace(" ","")
 
         if school.telephone:
             phone = school.telephone.replace("  ", " ")
@@ -384,10 +370,10 @@ def main(filename: str = 'skoler.osm'):
                         phone = "+" + phone[2:].lstrip()
                     else:
                         phone = "+47 " + phone
-                make_osm_line(file, "phone", phone)
+                node.tags["phone"] = phone
 
         if school.num_pupils:
-            make_osm_line(file, "capacity", str(school.num_pupils))
+            node.tags["capacity"] = str(school.num_pupils)
 
         # Get school type
 
@@ -406,9 +392,9 @@ def main(filename: str = 'skoler.osm'):
 
         if grade1 and grade2:
             if grade1 == grade2:
-                make_osm_line(file, "grades", str(grade1))
+                node.tags["grades"] = str(grade1)
             else:
-                make_osm_line(file, "grades", str(grade1) + "-" + str(grade2))
+                node.tags["grades"] = str(grade1) + "-" + str(grade2)
 
             if grade1 <= 7:
                 isced = "1"
@@ -423,20 +409,20 @@ def main(filename: str = 'skoler.osm'):
             if school.is_secondary_education:
                 isced += ";3"
 
-        make_osm_line(file, "isced:level", isced.strip(";"))
+        node.tags["isced:level"] = isced.strip(";")
 
         # Check for "Andre tjenester tilknyttet undervisning" code
         if any([code.code == "85.609" for code in school.business_codes]):
-            make_osm_line(file, "OTHER_SERVICES", "yes")
+            node.tags["OTHER_SERVICES"] = "yes"
 
         # Get operator
 
         if school.is_public_school:
-            make_osm_line(file, "operator:type", "public")
-            make_osm_line(file, "fee", "no")
+            node.tags["operator:type"] = "public"
+            node.tags["fee"] = "no"
         elif school.is_private_school:
-            make_osm_line(file, "operator:type", "private")
-            make_osm_line(file, "fee", "yes")
+            node.tags["operator:type"] = "private"
+            node.tags["fee"] = "yes"
 
         for parent in school.parent_relations:
             if parent.relation_type.id == "1" and parent.unit.name:  # Owner
@@ -451,33 +437,34 @@ def main(filename: str = 'skoler.osm'):
                         operator += word + " "
 
                 operator = operator[0].upper() + operator[1:].replace("  ", " ").strip()
-                make_osm_line(file, "operator", operator)
+                node.tags["operator"] = operator
 
         # Generate extra tags for help during import
 
 #            if school['GsiId'] != "0":
-#                make_osm_line(file, "GSIID", school['GsiId'])
+#                node.tags["GSIID"] = school['GsiId']
 
         if school.date_created:
-            make_osm_line(file, "DATE_CREATED", school.date_created.strftime("%Y-%m-%d"))
+            node.tags["DATE_CREATED"] = school.date_created.strftime("%Y-%m-%d")
 
-        make_osm_line(file, "DATE_UPDATED", school.date_changed.strftime("%Y-%m-%d"))
-        make_osm_line(file, "MUNICIPALITY", school.municipality.name)
-        make_osm_line(file, "COUNTY", school.county.name)
-        make_osm_line(file, "DEPARTMENT", school.characteristic)
-        make_osm_line(file, "LANGUAGE", school.written_language.name)
+        node.tags["DATE_UPDATED"] = school.date_changed.strftime("%Y-%m-%d")
+        node.tags["MUNICIPALITY"] = school.municipality.name
+        node.tags["COUNTY"] = school.county.name
+        if school.characteristic:
+            node.tags["DEPARTMENT"] = school.characteristic
+        node.tags["LANGUAGE"] = school.written_language.name
 
-        make_osm_line(file, "ENTITY_CODES", "; ".join(["%i.%s" % (code.priority, code.name) for code in school.business_codes]))
-        make_osm_line(file, "SCHOOL_CODES", str("; ".join([code.name for code in school.school_categories])))
+        node.tags["ENTITY_CODES"] = "; ".join(["%i.%s" % (code.priority, code.name) for code in school.business_codes])
+        node.tags["SCHOOL_CODES"] = str("; ".join([code.name for code in school.school_categories]))
 
         if school.is_special_school:
-            make_osm_line(file, "SPECIAL_NEEDS", "Spesialskole")
+            node.tags["SPECIAL_NEEDS"] = "Spesialskole"
 
         if name != original_name:
-            make_osm_line(file, "ORIGINAL_NAME", original_name)
+            node.tags["ORIGINAL_NAME"] = original_name
 
         if school.coordinate:
-            make_osm_line(file, "LOCATION_SOURCE", school.coordinate.geo_source)
+            node.tags["LOCATION_SOURCE"] = school.coordinate.geo_source
 
         address = school.location_address
         if address:
@@ -491,20 +478,19 @@ def main(filename: str = 'skoler.osm'):
             if address.country and address.country != "Norge":
                 address_line += ", " + address.country
             if address_line:
-                make_osm_line(file, "ADDRESS", address_line)
+                node.tags["ADDRESS"] = address_line
 
         if not (longitude or latitude):
-            make_osm_line(file, "GEOCODE", "yes")
+            node.tags["GEOCODE"] = "yes"
             geocode += 1
 
         # Done with OSM node
 
-        file.write('  </node>\n')
+        osm_data.nodes.append(node)
 
     # Produce OSM file footer
-
-    file.write('</osm>\n')
-    file.close()
+    with open(filename, "w") as file:
+        osm_data.xml(file)
 
     message("\r%i schools written to file\n" % count)
     message("%i schools need geocoding\n\n" % geocode)
