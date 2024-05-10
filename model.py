@@ -28,14 +28,6 @@ class BeliggenhetsadresseExternal(BaseModel):
     Postnr: Optional[constr(min_length=4, max_length=4)] = None
 
 
-class EnhetMinimumApiModel(BaseModel):
-    class Config:
-        extra = Extra.forbid
-
-    org_num: Optional[str] = Field(validation_alias="Orgnr", default=None)
-    name: Optional[str] = Field(validation_alias="Navn", default=None)
-
-
 class EnhetNaeringskodeApiModel(BaseModel):
     class Config:
         extra = Extra.forbid
@@ -107,32 +99,6 @@ class NaeringskodeApiModel(BaseModel):
     Kode: Optional[str] = None
     Navn: Optional[str] = None
     Versjon: Optional[str] = None
-
-
-class NsrEnhetTinyApiModel(BaseModel):
-    class Config:
-        extra = Extra.forbid
-
-    org_num: Optional[str] = Field(validation_alias="Orgnr", default=None)
-    name: Optional[str] = Field(validation_alias="Navn", default=None)
-    characteristic: Optional[str] = Field(validation_alias="Karakteristikk", default=None)
-    county_num: Optional[str] = Field(validation_alias="Fylkesnr", default=None)
-    municipality_num: Optional[str] = Field(validation_alias="Kommunenr", default=None)
-    email: Optional[str] = Field(validation_alias="Epost", default=None)
-    is_active: Optional[bool] = Field(validation_alias="ErAktiv", default=None)
-    is_school: Optional[bool] = Field(validation_alias="ErSkole", default=None)
-    is_school_owner: Optional[bool] = Field(validation_alias="ErSkoleeier", default=None)
-    is_primary_education: Optional[bool] = Field(validation_alias="ErGrunnskole", default=None)
-    is_secondary_education: Optional[bool] = Field(validation_alias="ErVideregaaendeSkole", default=None)
-    is_private_school: Optional[bool] = Field(validation_alias="ErPrivatskole", default=None)
-    is_public_school: Optional[bool] = Field(validation_alias="ErOffentligSkole", default=None)
-    is_special_school: Optional[bool] = Field(validation_alias="ErSpesialskole", default=None)
-    is_basic_training: Optional[bool] = Field(validation_alias="ErGrunnopplaering", default=None)
-    date_changed: Optional[datetime] = Field(validation_alias="DatoEndret", default=None)
-
-    @property
-    def is_relevant(self):
-        return self.is_active and self.is_school and (self.is_primary_education or self.is_secondary_education)
 
 
 class NsrEnhetTinyApiModelApiPageResult(BaseModel):
@@ -261,6 +227,40 @@ class UpdateEnheterPayload(BaseModel):
 
     BrukernavnEksternt: constr(min_length=1)
     Enheter: Optional[List[EnhetExternal]] = None
+
+
+class EnhetMinimumApiModel(BaseModel):
+    class Config:
+        extra = Extra.forbid
+
+    org_num: Optional[str] = Field(validation_alias="Orgnr", default=None)
+    name: Optional[str] = Field(validation_alias="Navn", default=None)
+
+
+class NsrEnhetTinyApiModel(BaseModel):
+    class Config:
+        extra = Extra.forbid
+
+    org_num: Optional[str] = Field(validation_alias="Orgnr", default=None)
+    name: Optional[str] = Field(validation_alias="Navn", default=None)
+    characteristic: Optional[str] = Field(validation_alias="Karakteristikk", default=None)
+    county_num: Optional[str] = Field(validation_alias="Fylkesnr", default=None)
+    municipality_num: Optional[str] = Field(validation_alias="Kommunenr", default=None)
+    email: Optional[str] = Field(validation_alias="Epost", default=None)
+    is_active: Optional[bool] = Field(validation_alias="ErAktiv", default=None)
+    is_school: Optional[bool] = Field(validation_alias="ErSkole", default=None)
+    is_school_owner: Optional[bool] = Field(validation_alias="ErSkoleeier", default=None)
+    is_primary_education: Optional[bool] = Field(validation_alias="ErGrunnskole", default=None)
+    is_secondary_education: Optional[bool] = Field(validation_alias="ErVideregaaendeSkole", default=None)
+    is_private_school: Optional[bool] = Field(validation_alias="ErPrivatskole", default=None)
+    is_public_school: Optional[bool] = Field(validation_alias="ErOffentligSkole", default=None)
+    is_special_school: Optional[bool] = Field(validation_alias="ErSpesialskole", default=None)
+    is_basic_training: Optional[bool] = Field(validation_alias="ErGrunnopplaering", default=None)
+    date_changed: Optional[datetime] = Field(validation_alias="DatoEndret", default=None)
+
+    @property
+    def is_relevant(self):
+        return self.is_active and self.is_school and (self.is_primary_education or self.is_secondary_education)
 
 
 class NsrEnhetApiModel(BaseModel):
