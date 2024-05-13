@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, Extra, constr, Field
+from pydantic_extra_types.coordinate import Latitude, Longitude
 
 
 class AdresseApiModel(BaseModel):
@@ -78,8 +79,8 @@ class KoordinatApiModel(BaseModel):
     class Config:
         extra = Extra.forbid
 
-    latitude: Optional[float] = Field(validation_alias="Breddegrad", default=0)
-    longitude: Optional[float] = Field(validation_alias="Lengdegrad", default=0)
+    latitude: Optional[Latitude] = Field(validation_alias="Breddegrad", default=0)
+    longitude: Optional[Longitude] = Field(validation_alias="Lengdegrad", default=0)
     zoom: Optional[int] = Field(validation_alias="Zoom", default=None)
     geo_source: Optional[str] = Field(validation_alias="GeoKilde", default=None)
 
@@ -233,29 +234,29 @@ class EnhetMinimumApiModel(BaseModel):
     class Config:
         extra = Extra.forbid
 
-    org_num: Optional[str] = Field(validation_alias="Orgnr", default=None)
-    name: Optional[str] = Field(validation_alias="Navn", default=None)
+    org_num: str = Field(validation_alias="Orgnr", default=None)
+    name: str = Field(validation_alias="Navn", default=None)
 
 
 class NsrEnhetTinyApiModel(BaseModel):
     class Config:
         extra = Extra.forbid
 
-    org_num: Optional[str] = Field(validation_alias="Orgnr", default=None)
-    name: Optional[str] = Field(validation_alias="Navn", default=None)
+    org_num: str = Field(validation_alias="Orgnr", default=None)
+    name: str = Field(validation_alias="Navn", default=None)
     characteristic: Optional[str] = Field(validation_alias="Karakteristikk", default=None)
     county_num: Optional[str] = Field(validation_alias="Fylkesnr", default=None)
     municipality_num: Optional[str] = Field(validation_alias="Kommunenr", default=None)
     email: Optional[str] = Field(validation_alias="Epost", default=None)
-    is_active: Optional[bool] = Field(validation_alias="ErAktiv", default=None)
-    is_school: Optional[bool] = Field(validation_alias="ErSkole", default=None)
-    is_school_owner: Optional[bool] = Field(validation_alias="ErSkoleeier", default=None)
-    is_primary_education: Optional[bool] = Field(validation_alias="ErGrunnskole", default=None)
-    is_secondary_education: Optional[bool] = Field(validation_alias="ErVideregaaendeSkole", default=None)
-    is_private_school: Optional[bool] = Field(validation_alias="ErPrivatskole", default=None)
-    is_public_school: Optional[bool] = Field(validation_alias="ErOffentligSkole", default=None)
-    is_special_school: Optional[bool] = Field(validation_alias="ErSpesialskole", default=None)
-    is_basic_training: Optional[bool] = Field(validation_alias="ErGrunnopplaering", default=None)
+    is_active: bool = Field(validation_alias="ErAktiv", default=None)
+    is_school: bool = Field(validation_alias="ErSkole", default=None)
+    is_school_owner: bool = Field(validation_alias="ErSkoleeier", default=None)
+    is_primary_education: bool = Field(validation_alias="ErGrunnskole", default=None)
+    is_secondary_education: bool = Field(validation_alias="ErVideregaaendeSkole", default=None)
+    is_private_school: bool = Field(validation_alias="ErPrivatskole", default=None)
+    is_public_school: bool = Field(validation_alias="ErOffentligSkole", default=None)
+    is_special_school: bool = Field(validation_alias="ErSpesialskole", default=None)
+    is_basic_training: bool = Field(validation_alias="ErGrunnopplaering", default=None)
     date_changed: Optional[datetime] = Field(validation_alias="DatoEndret", default=None)
 
     @property
@@ -267,8 +268,8 @@ class NsrEnhetApiModel(BaseModel):
     class Config:
         extra = Extra.forbid
 
-    org_num: Optional[str] = Field(validation_alias="Orgnr", default=None)
-    name: Optional[str] = Field(validation_alias="Navn", default=None)
+    org_num: str = Field(validation_alias="Orgnr", default=None)
+    name: str = Field(validation_alias="Navn", default=None)
     characteristic: Optional[str] = Field(validation_alias="Karakteristikk", default=None)
     county: Optional[FylkeApiModel] = Field(validation_alias="Fylke", default=None)
     municipality: Optional[KommuneApiModel] = Field(validation_alias="Kommune", default=None)
@@ -285,15 +286,15 @@ class NsrEnhetApiModel(BaseModel):
     business_codes: Optional[List[EnhetNaeringskodeApiModel]] = Field(validation_alias="Naeringskoder", default=None)
     help_unit_code: Optional[Hjelpeenhetskode] = Field(validation_alias="Hjelpeenhetskode", default=None)
     expired_type: Optional[UtgaattypeApiModel] = Field(validation_alias="Utgaattype", default=None)
-    is_active: Optional[bool] = Field(validation_alias="ErAktiv", default=None)
-    is_school: Optional[bool] = Field(validation_alias="ErSkole", default=None)
-    is_school_owner: Optional[bool] = Field(validation_alias="ErSkoleeier", default=None)
-    is_primary_education: Optional[bool] = Field(validation_alias="ErGrunnskole", default=None)
-    is_private_school: Optional[bool] = Field(validation_alias="ErPrivatskole", default=None)
-    is_public_school: Optional[bool] = Field(validation_alias="ErOffentligSkole", default=None)
-    is_secondary_education: Optional[bool] = Field(validation_alias="ErVideregaaendeSkole", default=None)
-    is_special_school: Optional[bool] = Field(validation_alias="ErSpesialskole", default=None)
-    is_basic_training: Optional[bool] = Field(validation_alias="ErGrunnopplaering", default=None)
+    is_active: bool = Field(validation_alias="ErAktiv", default=None)
+    is_school: bool = Field(validation_alias="ErSkole", default=None)
+    is_school_owner: bool = Field(validation_alias="ErSkoleeier", default=None)
+    is_primary_education: bool = Field(validation_alias="ErGrunnskole", default=None)
+    is_private_school: bool = Field(validation_alias="ErPrivatskole", default=None)
+    is_public_school: bool = Field(validation_alias="ErOffentligSkole", default=None)
+    is_secondary_education: bool = Field(validation_alias="ErVideregaaendeSkole", default=None)
+    is_special_school: bool = Field(validation_alias="ErSpesialskole", default=None)
+    is_basic_training: bool = Field(validation_alias="ErGrunnopplaering", default=None)
     private_school_approval: Optional[PrivatskoleGodkjenningApiModel] = Field(validation_alias="PrivatskoleGodkjenning", default=None)
     school_leader: Optional[PersonApiModel] = Field(validation_alias="Skoleleder", default=None)
     num_pupils: Optional[int] = Field(validation_alias="Elevtall", default=None)

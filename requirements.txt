@@ -1,2 +1,4 @@
 pydantic
+pydantic_extra_types
+phonenumbers
 requests
