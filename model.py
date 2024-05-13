@@ -260,7 +260,7 @@ class NsrEnhetTinyApiModel(BaseModel):
     date_changed: Optional[datetime] = Field(validation_alias="DatoEndret", default=None)
 
     @property
-    def is_relevant(self):
+    def is_relevant_school(self):
         return self.is_active and self.is_school and (self.is_primary_education or self.is_secondary_education)
 
 

@@ -4,7 +4,7 @@ import html
 
 
 @dataclass
-class TaggedObject:
+class TaggedElement:
     id: int = field(init=False)
     tags: dict[str, str] = field(default_factory=dict)
 
@@ -18,12 +18,12 @@ class TaggedObject:
             print(f'{dent}<tag k="{html.escape(key)}" v="{html.escape(value).strip()}" />', file=file)
 
     def __post_init__(self):
-        self.id = TaggedObject.id_counter
-        TaggedObject.id_counter -= 1
+        self.id = TaggedElement.id_counter
+        TaggedElement.id_counter -= 1
 
 
 @dataclass
-class Node(TaggedObject):
+class Node(TaggedElement):
     lat: float = None
     lon: float = None
     type: ClassVar[str] = "node"
@@ -39,7 +39,7 @@ class Node(TaggedObject):
 
 
 @dataclass
-class Way(TaggedObject):
+class Way(TaggedElement):
     nodes: list[Node] = field(default_factory=list)
     type: ClassVar[str] = "way"
 
@@ -63,7 +63,7 @@ class RelationMember:
 
 
 @dataclass
-class Relation(TaggedObject):
+class Relation(TaggedElement):
     members: list[RelationMember] = field(default_factory=list)
 
     def xml(self, file=None, pretty_print: bool = True, indent: int = 0):
