@@ -140,7 +140,7 @@ transform_operator = {
 }
 
 
-def fix_school_name(school: NsrEnhetApiModel) -> tuple[str, str]:
+def tag_name(node: Node, school: NsrEnhetApiModel) -> None:
     """Fix school name"""
 
     name = school.name
@@ -184,56 +184,28 @@ def fix_school_name(school: NsrEnhetApiModel) -> tuple[str, str]:
     #            if school['Maalform'] == "Nynorsk":
     #                name = name.replace("skole", "skule").replace("videregående", "vidaregåande")
 
-    return name, original_name
-
-
-def create_school_node(school: NsrEnhetApiModel) -> Node:
-    # Fix school name
-    name, original_name = fix_school_name(school)
-
-    # Generate tags
-    if school.coordinate:
-        latitude = school.coordinate.latitude
-        longitude = school.coordinate.longitude
-
-        # TODO: Check that this validation is handled by pydantic:
-        if not (latitude or longitude):
-            latitude = 0
-            longitude = 0
-    else:
-        latitude = 0
-        longitude = 0
-
-    node = Node(lat=latitude, lon=longitude)
-
-    node.tags["amenity"] = "school"
-    node.tags["ref:udir_nsr"] = school.org_num
     node.tags["name"] = name
+    if name != original_name:
+        node.tags["ORIGINAL_NAME"] = original_name
 
-    #            if school['Orgnr'] in old_refs:
-    #                node.tags["OLD_REF"] = str(old_refs[ school['Orgnr'] ])
 
-    if school.email:
-        node.tags["email"] = school.email.lower()
+def tag_telephone(node: Node, school: NsrEnhetApiModel) -> None:
+    if not school.telephone:
+        return
 
-    if school.url and not("@" in school.url):
-        node.tags["website"] = "https://" + school.url.lstrip("/").replace("www2.", "").replace("www.", "").replace(" ","")
+    phone = school.telephone.replace("  ", " ")
+    if not phone:
+        return
 
-    if school.telephone:
-        phone = school.telephone.replace("  ", " ")
-        if phone:
-            if phone[0] != "+":
-                if phone[0:2] == "00":
-                    phone = "+" + phone[2:].lstrip()
-                else:
-                    phone = "+47 " + phone
-            node.tags["phone"] = phone
+    if phone[0] != "+":
+        if phone[0:2] == "00":
+            phone = "+" + phone[2:].lstrip()
+        else:
+            phone = "+47 " + phone
+    node.tags["phone"] = phone
 
-    if school.num_pupils:
-        node.tags["capacity"] = str(school.num_pupils)
 
-    # Get school type
-
+def tag_grade_and_isced(node: Node, school: NsrEnhetApiModel):
     isced = ""
     grade1 = ""
     grade2 = ""
@@ -268,19 +240,56 @@ def create_school_node(school: NsrEnhetApiModel) -> Node:
 
     node.tags["isced:level"] = isced.strip(";")
 
-    # Check for "Andre tjenester tilknyttet undervisning" code
-    if any([code.code == "85.609" for code in school.business_codes]):
-        node.tags["OTHER_SERVICES"] = "yes"
 
-    # Get operator
+def tag_metadata(node: Node, school: NsrEnhetApiModel) -> None:
+    if school.date_created:
+        node.tags["DATE_CREATED"] = school.date_created.strftime("%Y-%m-%d")
 
-    if school.is_public_school:
-        node.tags["operator:type"] = "public"
-        node.tags["fee"] = "no"
-    elif school.is_private_school:
-        node.tags["operator:type"] = "private"
-        node.tags["fee"] = "yes"
+    if school.date_changed:
+        node.tags["DATE_UPDATED"] = school.date_changed.strftime("%Y-%m-%d")
 
+    if school.municipality.name:
+        node.tags["MUNICIPALITY"] = school.municipality.name
+
+    if school.county.name:
+        node.tags["COUNTY"] = school.county.name
+
+    if school.characteristic:
+        node.tags["DEPARTMENT"] = school.characteristic
+
+    if school.written_language.name:
+        node.tags["LANGUAGE"] = school.written_language.name
+
+    if school.business_codes:
+        node.tags["ENTITY_CODES"] = "; ".join([f"{code.priority}.{code.name}" for code in school.business_codes])
+
+    if school.school_categories:
+        node.tags["SCHOOL_CODES"] = str("; ".join([code.name for code in school.school_categories]))
+
+    if school.is_special_school:
+        node.tags["SPECIAL_NEEDS"] = "Spesialskole"
+
+    if school.coordinate.geo_source:
+        node.tags["LOCATION_SOURCE"] = school.coordinate.geo_source
+
+
+def tag_address(node: Node, school: NsrEnhetApiModel) -> None:
+    address = school.location_address
+    if address:
+        address_line = ""
+        if address.address and (address.address != "-"):
+            address_line = address.address + ", "
+        if address.post_code:
+            address_line += address.post_code + " "
+        if address.city:
+            address_line += address.city
+        if address.country and address.country != "Norge":
+            address_line += ", " + address.country
+        if address_line:
+            node.tags["ADDRESS"] = address_line
+
+
+def tag_operator(node: Node, school: NsrEnhetApiModel) -> None:
     for parent in school.parent_relations:
         if parent.relation_type.id == "1" and parent.unit.name:  # Owner
 
@@ -296,48 +305,48 @@ def create_school_node(school: NsrEnhetApiModel) -> Node:
             operator = operator[0].upper() + operator[1:].replace("  ", " ").strip()
             node.tags["operator"] = operator
 
-    # Generate extra tags for help during import
 
-    #            if school['GsiId'] != "0":
-    #                node.tags["GSIID"] = school['GsiId']
+def tag_operator_type(node: Node, school: NsrEnhetApiModel) -> None:
+    if school.is_public_school:
+        node.tags["operator:type"] = "public"
+        node.tags["fee"] = "no"
+    elif school.is_private_school:
+        node.tags["operator:type"] = "private"
+        node.tags["fee"] = "yes"
 
-    if school.date_created:
-        node.tags["DATE_CREATED"] = school.date_created.strftime("%Y-%m-%d")
 
-    node.tags["DATE_UPDATED"] = school.date_changed.strftime("%Y-%m-%d")
-    node.tags["MUNICIPALITY"] = school.municipality.name
-    node.tags["COUNTY"] = school.county.name
-    if school.characteristic:
-        node.tags["DEPARTMENT"] = school.characteristic
-    node.tags["LANGUAGE"] = school.written_language.name
-
-    node.tags["ENTITY_CODES"] = "; ".join([f"{code.priority}.{code.name}" for code in school.business_codes])
-    node.tags["SCHOOL_CODES"] = str("; ".join([code.name for code in school.school_categories]))
-
-    if school.is_special_school:
-        node.tags["SPECIAL_NEEDS"] = "Spesialskole"
-
-    if name != original_name:
-        node.tags["ORIGINAL_NAME"] = original_name
-
-    if school.coordinate:
-        node.tags["LOCATION_SOURCE"] = school.coordinate.geo_source
-
-    address = school.location_address
-    if address:
-        address_line = ""
-        if address.address and (address.address != "-"):
-            address_line = address.address + ", "
-        if address.post_code:
-            address_line += address.post_code + " "
-        if address.city:
-            address_line += address.city
-        if address.country and address.country != "Norge":
-            address_line += ", " + address.country
-        if address_line:
-            node.tags["ADDRESS"] = address_line
-
-    if not (longitude or latitude):
+def create_school_node(school: NsrEnhetApiModel) -> Node:
+    node = Node(lat=school.coordinate.latitude, lon=school.coordinate.longitude)
+    if not (school.coordinate.longitude and school.coordinate.latitude):
         node.tags["GEOCODE"] = "yes"
+
+    node.tags["amenity"] = "school"
+    node.tags["ref:udir_nsr"] = school.org_num
+    tag_name(node, school)
+
+    if school.email:
+        node.tags["email"] = school.email.lower()  # TODO: Do lower() formatting in model
+
+    if school.url and not("@" in school.url):
+        node.tags["website"] = "https://" + school.url.lstrip("/").replace("www2.", "").replace("www.", "").replace(" ","")
+
+    tag_telephone(node, school)
+
+    if school.num_pupils:
+        node.tags["capacity"] = str(school.num_pupils)
+
+    tag_grade_and_isced(node, school)
+
+    # Check for "Andre tjenester tilknyttet undervisning" code
+    if any([code.code == "85.609" for code in school.business_codes]):
+        node.tags["OTHER_SERVICES"] = "yes"
+
+    # Get operator
+    tag_operator_type(node, school)
+    tag_operator(node, school)
+
+    tag_metadata(node, school)
+
+    tag_address(node, school)
 
     return node

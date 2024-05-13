@@ -6,9 +6,20 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import List, Optional
+from typing_extensions import Annotated
 
-from pydantic import BaseModel, Extra, constr, Field
+from pydantic import BaseModel, Extra, constr, Field, model_validator, ValidatorFunctionWrapHandler
+from pydantic.functional_validators import WrapValidator
 from pydantic_extra_types.coordinate import Latitude, Longitude
+
+
+def empty_string_is_none(value: str, handler: ValidatorFunctionWrapHandler) -> str | None:
+    if value == "":
+        return None
+    return handler(value)
+
+
+StrEmptyIsNone = Annotated[str, WrapValidator(empty_string_is_none)]
 
 
 class AdresseApiModel(BaseModel):
@@ -79,10 +90,17 @@ class KoordinatApiModel(BaseModel):
     class Config:
         extra = Extra.forbid
 
-    latitude: Optional[Latitude] = Field(validation_alias="Breddegrad", default=0)
-    longitude: Optional[Longitude] = Field(validation_alias="Lengdegrad", default=0)
+    latitude: Optional[Latitude] = Field(validation_alias="Breddegrad", default=None)
+    longitude: Optional[Longitude] = Field(validation_alias="Lengdegrad", default=None)
     zoom: Optional[int] = Field(validation_alias="Zoom", default=None)
     geo_source: Optional[str] = Field(validation_alias="GeoKilde", default=None)
+
+    @model_validator(mode="after")
+    def check_coordinates(self):
+        if self.latitude is None or self.longitude is None:
+            self.latitude = 0
+            self.longitude = 0
+        return self
 
 
 class MaalformApiModel(BaseModel):
@@ -242,12 +260,12 @@ class NsrEnhetTinyApiModel(BaseModel):
     class Config:
         extra = Extra.forbid
 
-    org_num: str = Field(validation_alias="Orgnr", default=None)
+    org_num: str = Field(validation_alias="Orgnr")
     name: str = Field(validation_alias="Navn", default=None)
     characteristic: Optional[str] = Field(validation_alias="Karakteristikk", default=None)
     county_num: Optional[str] = Field(validation_alias="Fylkesnr", default=None)
     municipality_num: Optional[str] = Field(validation_alias="Kommunenr", default=None)
-    email: Optional[str] = Field(validation_alias="Epost", default=None)
+    email: Optional[StrEmptyIsNone] = Field(validation_alias="Epost", default=None)
     is_active: bool = Field(validation_alias="ErAktiv", default=None)
     is_school: bool = Field(validation_alias="ErSkole", default=None)
     is_school_owner: bool = Field(validation_alias="ErSkoleeier", default=None)
@@ -276,7 +294,7 @@ class NsrEnhetApiModel(BaseModel):
     location_address: Optional[AdresseApiModel] = Field(validation_alias="Beliggenhetsadresse", default=None)
     post_address: Optional[AdresseApiModel] = Field(validation_alias="Postadresse", default=None)
     coordinate: Optional[KoordinatApiModel] = Field(validation_alias="Koordinat", default=None)
-    email: Optional[str] = Field(validation_alias="Epost", default=None)
+    email: Optional[StrEmptyIsNone] = Field(validation_alias="Epost", default=None)
     url: Optional[str] = Field(validation_alias="Url", default=None)
     written_language: Optional[MaalformApiModel] = Field(validation_alias="Maalform", default=None)
     telephone: Optional[str] = Field(validation_alias="Telefon", default=None)
